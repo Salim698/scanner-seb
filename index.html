@@ -78,6 +78,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.3s;
     }
     
     #statusBox.scanning {
@@ -88,6 +89,11 @@
     #statusBox.detected {
       color: #4caf50;
       background: #e8f5e9;
+    }
+
+    #statusBox.error-text {
+      color: #f44336;
+      background: #ffebee;
     }
     
     #detectedCode {
@@ -139,10 +145,6 @@
       cursor: not-allowed;
     }
     
-    #verifyBtn:active:not(:disabled) {
-      transform: translateY(0);
-    }
-    
     #resultBox {
       display: none;
       margin-top: 2rem;
@@ -153,76 +155,17 @@
     }
     
     @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     
-    #resultBox.success {
-      background: #e8f5e9;
-      border: 2px solid #4caf50;
-    }
+    #resultBox.success { background: #e8f5e9; border: 2px solid #4caf50; }
+    #resultBox.error { background: #ffebee; border: 2px solid #f44336; }
     
-    #resultBox.error {
-      background: #ffebee;
-      border: 2px solid #f44336;
-    }
-    
-    #resultIcon {
-      font-size: 56px;
-      margin-bottom: 1rem;
-    }
-    
-    #resultStatus {
-      font-size: 20px;
-      font-weight: bold;
-      margin-bottom: 0.5rem;
-    }
-    
-    #resultBox.success #resultStatus {
-      color: #2e7d32;
-    }
-    
-    #resultBox.error #resultStatus {
-      color: #c62828;
-    }
-    
-    #resultMessage {
-      font-size: 14px;
-      color: #666;
-    }
-    
-    .error-text {
-      color: #f44336 !important;
-    }
-    
-    .success-text {
-      color: #4caf50 !important;
-    }
-    
-    @media (max-width: 480px) {
-      #container {
-        padding: 1.5rem;
-      }
-      
-      .header h1 {
-        font-size: 20px;
-      }
-      
-      #video {
-        height: 250px;
-      }
-      
-      #verifyBtn {
-        padding: 12px;
-        font-size: 14px;
-      }
-    }
+    #resultIcon { font-size: 56px; margin-bottom: 1rem; }
+    #resultStatus { font-size: 20px; font-weight: bold; margin-bottom: 0.5rem; }
+    #resultMessage { font-size: 14px; color: #666; }
+
   </style>
 </head>
 <body>
@@ -254,7 +197,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <script>
-    // ⚠️ REMPLACE CETTE URL PAR TON WEBHOOK N8N
+    // Configuration de l'URL du Webhook n8n
     const WEBHOOK_URL = 'https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify';
     
     const video = document.getElementById('video');
@@ -299,20 +242,28 @@
           if (code) {
             const qrValue = code.data.toUpperCase().trim();
             
-            // Vérification conservée exactement comme tu l'as demandée
-            if (qrValue.includes('SEB-2026') && qrValue.length >= 17) {
+            // Logique de détection SEB-2026
+            if (qrValue.includes('SEB-2026') && qrValue.length >= 14) {
               if (lastScannedCode !== qrValue) {
                 lastScannedCode = qrValue;
                 detectedCode.textContent = qrValue;
                 detectedCode.classList.add('active');
-                statusBox.textContent = '✓ QR détecté!';
+                statusBox.textContent = '✓ Billet détecté !';
                 statusBox.classList.add('detected');
-                statusBox.classList.remove('scanning');
+                statusBox.classList.remove('scanning', 'error-text');
                 verifyBtn.disabled = false;
               }
+            } else {
+              // Si le QR code est scanné mais n'est pas au bon format
+              if (!isVerifying && lastScannedCode !== qrValue) {
+                statusBox.textContent = '❌ Format invalide : ' + qrValue.substring(0, 15);
+                statusBox.classList.add('error-text');
+                statusBox.classList.remove('scanning', 'detected');
+                verifyBtn.disabled = true;
+                detectedCode.textContent = "--";
+                detectedCode.classList.remove('active');
+              }
             }
-          } else if (lastScannedCode) {
-            // Keep showing the last detected code
           }
         } catch (e) {
           console.error('QR scan error:', e);
@@ -333,7 +284,10 @@
         
         const response = await fetch(WEBHOOK_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true' // Évite la page d'interruption ngrok
+          },
           body: JSON.stringify({ qr_code: lastScannedCode })
         });
         
@@ -343,45 +297,32 @@
         const isValid = data.status && data.status.includes('VALIDE');
         
         if (isValid) {
-          resultBox.classList.add('success');
-          resultBox.classList.remove('error');
+          resultBox.className = 'success';
+          resultBox.style.display = 'block';
           document.getElementById('resultIcon').textContent = '✅';
           document.getElementById('resultStatus').textContent = 'Ticket valide';
-          document.getElementById('resultStatus').style.color = '#2e7d32';
           document.getElementById('resultMessage').textContent = data.message || 'Entrée autorisée';
         } else {
-          resultBox.classList.add('error');
-          resultBox.classList.remove('success');
+          resultBox.className = 'error';
+          resultBox.style.display = 'block';
           document.getElementById('resultIcon').textContent = '❌';
           document.getElementById('resultStatus').textContent = 'Ticket invalide';
-          document.getElementById('resultStatus').style.color = '#c62828';
-          document.getElementById('resultMessage').textContent = data.message || 'Refusé';
+          document.getElementById('resultMessage').textContent = data.message || 'Accès refusé';
         }
       } catch (err) {
         resultBox.style.display = 'block';
-        resultBox.classList.add('error');
-        resultBox.classList.remove('success');
+        resultBox.className = 'error';
         document.getElementById('resultIcon').textContent = '⚠️';
         document.getElementById('resultStatus').textContent = 'Erreur de connexion';
-        document.getElementById('resultStatus').style.color = '#c62828';
-        document.getElementById('resultMessage').textContent = 'Vérifiez votre internet';
+        document.getElementById('resultMessage').textContent = 'Impossible de joindre le serveur';
       } finally {
-        // CORRECTION ICI : Tout le bloc de réinitialisation est dans le timeout
         setTimeout(() => {
-          // On cache le résultat
           resultBox.style.display = 'none';
-          
-          // On réinitialise l'affichage du code
           detectedCode.textContent = "--";
           detectedCode.classList.remove('active');
           lastScannedCode = null;
-          
-          // On réinitialise la boîte de statut en haut
           statusBox.textContent = 'En attente du QR code...';
-          statusBox.classList.remove('detected');
-          statusBox.classList.add('scanning');
-          
-          // On réactive le bouton pour le prochain scan
+          statusBox.className = 'scanning';
           verifyBtn.disabled = true;
           verifyBtn.textContent = 'VÉRIFIER';
           isVerifying = false;
