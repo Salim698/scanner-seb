@@ -300,7 +300,7 @@
             const qrValue = code.data.toUpperCase().trim();
             
             // Vérification conservée exactement comme tu l'as demandée
-            if (qrValue.includes('SEB-2026') && qrValue.length >= 14) {
+            if (qrValue.includes('SEB-2026') && qrValue.length >= 17) {
               if (lastScannedCode !== qrValue) {
                 lastScannedCode = qrValue;
                 detectedCode.textContent = qrValue;
