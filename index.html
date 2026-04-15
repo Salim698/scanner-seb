@@ -1,320 +1,213 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scanner SEB-2026</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      display: flex; align-items: center; justify-content: center;
-      padding: 1rem;
-    }
-    #container {
-      background: white; border-radius: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-      max-width: 460px; width: 100%; overflow: hidden;
-    }
-    .header {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      padding: 1.5rem; text-align: center; color: white;
-    }
-    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
-    .header p  { font-size: 13px; opacity: 0.85; }
-    .body { padding: 1.5rem; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scanner SEB-2026</title>
 
-    #cam-wrap {
-      position: relative; width: 100%;
-      border-radius: 12px; overflow: hidden;
-      background: #000; margin-bottom: 1rem;
-    }
-    #video { width: 100%; height: 280px; display: block; object-fit: cover; }
-    #canvas { display: none; }
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:Arial;
+  background:#111;
+  color:#fff;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
 
-    .viewfinder {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 160px; height: 160px;
-      border: 2px solid rgba(255,255,255,0.5);
-      border-radius: 12px;
-    }
-    .corner {
-      position: absolute; width: 20px; height: 20px;
-      border-color: #4ade80; border-style: solid;
-    }
-    .corner.tl { top:-3px; left:-3px;   border-width:4px 0 0 4px; border-radius:4px 0 0 0; }
-    .corner.tr { top:-3px; right:-3px;  border-width:4px 4px 0 0; border-radius:0 4px 0 0; }
-    .corner.bl { bottom:-3px; left:-3px;  border-width:0 0 4px 4px; border-radius:0 0 0 4px; }
-    .corner.br { bottom:-3px; right:-3px; border-width:0 4px 4px 0; border-radius:0 0 4px 0; }
-    .scan-line {
-      position: absolute; top:0; left:0; right:0; height:2px;
-      background: linear-gradient(90deg, transparent, #4ade80, transparent);
-      animation: scan 2s linear infinite;
-    }
-    @keyframes scan {
-      0%  { top:0%;   opacity:1; }
-      90% { top:100%; opacity:1; }
-      100%{ top:100%; opacity:0; }
-    }
-    #fps-badge {
-      position: absolute; top:8px; right:8px;
-      background: rgba(0,0,0,0.55); color:#4ade80;
-      font-size:11px; font-family:monospace;
-      padding:3px 7px; border-radius:20px;
-    }
+#container{
+  width:100%;
+  max-width:420px;
+}
 
-    #status {
-      padding:10px 14px; border-radius:8px;
-      font-size:13px; font-weight:500; text-align:center;
-      margin-bottom:1rem; transition:all 0.3s;
-    }
-    #status.wait     { background:#eff6ff; color:#3b82f6; }
-    #status.detected { background:#f0fdf4; color:#16a34a; }
-    #status.bad      { background:#fff7ed; color:#ea580c; }
-    #status.err      { background:#fef2f2; color:#dc2626; }
+#video{
+  width:100%;
+  border-radius:10px;
+}
 
-    #debug {
-      background:#0f172a; border-radius:8px;
-      padding:8px 12px; margin-bottom:6px;
-      font-family:monospace; font-size:11px; color:#4ade80;
-      display:flex; align-items:center; gap:8px; min-height:32px;
-    }
-    #debug .label { color:#64748b; flex-shrink:0; }
-    #debug .val   { word-break:break-all; }
+#status{
+  margin-top:10px;
+  text-align:center;
+}
 
-    #debug-toggle {
-      display:block; width:100%; text-align:center;
-      font-size:11px; color:#94a3b8; background:none;
-      border:none; cursor:pointer; padding:4px 0 12px;
-    }
+#code-box{
+  margin-top:10px;
+  background:#222;
+  padding:10px;
+  border-radius:8px;
+  text-align:center;
+}
 
-    #code-box {
-      background:#f8fafc; border:2px solid #e2e8f0;
-      border-radius:10px; padding:14px; text-align:center;
-      font-family:monospace; font-size:15px; font-weight:700;
-      color:#475569; margin-bottom:1rem; min-height:52px;
-      display:flex; align-items:center; justify-content:center;
-      transition:all 0.3s; word-break:break-all;
-    }
-    #code-box.active { border-color:#22c55e; background:#f0fdf4; color:#15803d; }
+#btn{
+  margin-top:10px;
+  width:100%;
+  padding:12px;
+  background:#4ade80;
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+}
 
-    #btn {
-      width:100%; padding:15px; font-size:15px;
-      font-weight:700; letter-spacing:1px; border:none;
-      border-radius:10px;
-      background:linear-gradient(135deg,#667eea,#764ba2);
-      color:white; cursor:pointer; transition:all 0.25s;
-      text-transform:uppercase;
-    }
-    #btn:disabled { background:#e2e8f0; color:#94a3b8; cursor:not-allowed; transform:none; }
-    #btn:not(:disabled):hover { opacity:0.9; transform:translateY(-2px); box-shadow:0 6px 20px rgba(102,126,234,0.45); }
-
-    #result {
-      display:none; margin-top:1.25rem; padding:1.5rem;
-      border-radius:12px; text-align:center; animation:up 0.3s ease;
-    }
-    @keyframes up { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-    #result.ok { background:#f0fdf4; border:2px solid #22c55e; }
-    #result.ko { background:#fef2f2; border:2px solid #ef4444; }
-    #result .icon  { font-size:52px; margin-bottom:8px; }
-    #result .title { font-size:20px; font-weight:700; margin-bottom:4px; }
-    #result.ok .title { color:#15803d; }
-    #result.ko .title { color:#b91c1c; }
-    #result .msg { font-size:13px; color:#64748b; }
-  </style>
+#result{
+  margin-top:10px;
+  padding:10px;
+  display:none;
+}
+</style>
 </head>
+
 <body>
+
 <div id="container">
-  <div class="header">
-    <h1>🎫 Scanner SEB-2026</h1>
-    <p>Centre le QR code dans le cadre</p>
-  </div>
-  <div class="body">
-    <div id="cam-wrap">
-      <video id="video" playsinline autoplay muted></video>
-      <canvas id="canvas"></canvas>
-      <div class="viewfinder">
-        <div class="corner tl"></div><div class="corner tr"></div>
-        <div class="corner bl"></div><div class="corner br"></div>
-        <div class="scan-line"></div>
-      </div>
-      <div id="fps-badge">⏳ init...</div>
-    </div>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" style="display:none;"></canvas>
 
-    <div id="status" class="wait">📷 Démarrage caméra...</div>
-
-    <div id="debug">
-      <span class="label">DEBUG →</span>
-      <span class="val" id="debug-val">en attente...</span>
-    </div>
-    <button id="debug-toggle">masquer le debug</button>
-
-    <div id="code-box">--</div>
-    <button id="btn" disabled>VÉRIFIER LE BILLET</button>
-    <div id="result">
-      <div class="icon">✅</div>
-      <p class="title">Billet valide</p>
-      <p class="msg">Entrée autorisée</p>
-    </div>
-  </div>
+  <div id="status">📷 Démarrage caméra...</div>
+  <div id="code-box">--</div>
+  <button id="btn" disabled>VÉRIFIER</button>
+  <div id="result"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+
 <script>
-// ═══════════════════════════════════════
-const WEBHOOK = 'https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook-test/ticket-verify';
-const PREFIX  = 'SEB-2026-';
-// ═══════════════════════════════════════
+// ================= CONFIG =================
+const WEBHOOK = 'https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify';
+const PREFIX = 'SEB-2026-';
+// ==========================================
 
-const video    = document.getElementById('video');
-const canvas   = document.getElementById('canvas');
-const ctx      = canvas.getContext('2d');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
 const statusEl = document.getElementById('status');
-const debugVal = document.getElementById('debug-val');
-const codeBox  = document.getElementById('code-box');
-const btn      = document.getElementById('btn');
-const result   = document.getElementById('result');
-const fpsBadge = document.getElementById('fps-badge');
+const codeBox = document.getElementById('code-box');
+const btn = document.getElementById('btn');
+const result = document.getElementById('result');
 
-let lastCode   = null;
-let verifying  = false;
-let frames     = 0;
-let lastTime   = Date.now();
+let lastCode = null;
+let scanning = true;
 
-// Compteur FPS — montre que jsQR tourne vraiment
-setInterval(() => {
-  const now = Date.now();
-  const fps = Math.round(frames * 1000 / (now - lastTime));
-  fpsBadge.textContent = fps + ' fps';
-  frames = 0; lastTime = now;
-}, 1000);
-
-// Démarrage caméra
-async function startCamera() {
-  try {
+// 🚀 CAMERA
+async function startCamera(){
+  try{
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+      video: {
+        facingMode: "environment"
+      }
     });
+
     video.srcObject = stream;
 
-    // FIX : on utilise l'événement 'play' qui garantit que les frames arrivent
-    video.addEventListener('play', () => {
-      statusEl.textContent = '🔍 Scan en cours...';
-      statusEl.className   = 'wait';
-      requestAnimationFrame(loop);
-    });
+    video.onloadedmetadata = () => {
+      video.play();
+      statusEl.innerText = "🔍 Scan en cours...";
+      setTimeout(scanLoop, 500);
+    };
 
-    video.play().catch(() => {
-      // Sur iOS, play() peut nécessiter une interaction utilisateur
-      statusEl.textContent = '👆 Appuie pour activer la caméra';
-      document.body.addEventListener('click', () => video.play(), { once: true });
-    });
-
-  } catch(e) {
-    statusEl.textContent = '❌ Caméra : ' + e.message;
-    statusEl.className   = 'err';
+  }catch(e){
+    statusEl.innerText = "❌ Caméra erreur";
   }
 }
 
-// Boucle de scan
-function loop() {
-  // Attendre que la vidéo ait des données
-  if (video.readyState < 2) {
-    requestAnimationFrame(loop);
+// 🔍 SCAN LOOP (VERSION STABLE)
+function scanLoop(){
+
+  if(!scanning){
+    setTimeout(scanLoop, 300);
     return;
   }
 
-  canvas.width  = video.videoWidth  || 640;
-  canvas.height = video.videoHeight || 480;
+  if(video.readyState !== video.HAVE_ENOUGH_DATA){
+    setTimeout(scanLoop, 200);
+    return;
+  }
+
+  if(video.videoWidth === 0){
+    setTimeout(scanLoop, 200);
+    return;
+  }
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  frames++;
 
-  // attemptBoth = détecte QR clairs ET inversés (fond sombre)
-  const code = jsQR(
-    ctx.getImageData(0, 0, canvas.width, canvas.height).data,
-    canvas.width, canvas.height,
-    { inversionAttempts: 'attemptBoth' }
-  );
+  const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
 
-  if (code) {
-    const raw = code.data.trim();
-    const val = raw.toUpperCase();
-    debugVal.textContent = '"' + raw + '" (' + raw.length + ' chars)';
+  const code = jsQR(imageData.data, canvas.width, canvas.height, {
+    inversionAttempts: "attemptBoth"
+  });
 
-    if (!verifying && val.startsWith(PREFIX.toUpperCase()) && val.length >= 17) {
-      if (lastCode !== val) {
-        lastCode = val;
-        codeBox.textContent = val;
-        codeBox.classList.add('active');
-        statusEl.textContent = '✅ Billet détecté — appuie sur VÉRIFIER';
-        statusEl.className   = 'detected';
-        btn.disabled         = false;
-      }
-    } else if (!verifying) {
-      statusEl.textContent = '⚠️ QR lu mais pas un billet SEB-2026';
-      statusEl.className   = 'bad';
-    }
-  } else {
-    if (!verifying && !lastCode) {
-      debugVal.textContent = 'aucun QR dans cette frame';
+  if(code){
+    const val = code.data.trim();
+
+    console.log("QR:", val);
+
+    if(val.startsWith(PREFIX)){
+      scanning = false;
+      lastCode = val;
+
+      codeBox.innerText = val;
+      statusEl.innerText = "✅ QR détecté";
+
+      btn.disabled = false;
     }
   }
 
-  requestAnimationFrame(loop);
+  setTimeout(scanLoop, 150);
 }
 
-// Vérification
-btn.addEventListener('click', async () => {
-  if (!lastCode || verifying) return;
-  verifying = true; btn.disabled = true;
-  btn.textContent = '⏳ Vérification...';
-  result.style.display = 'none';
+// 🔎 VERIFY
+btn.addEventListener("click", async () => {
+  if(!lastCode) return;
 
-  try {
-    const res  = await fetch(WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-      body: JSON.stringify({ qr_code: lastCode })
+  btn.disabled = true;
+  btn.innerText = "⏳ Vérification...";
+
+  try{
+    const res = await fetch(WEBHOOK,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json"
+      },
+      body: JSON.stringify({
+        qr_code: lastCode
+      })
     });
-    const data  = await res.json();
-    const valid = data.status && data.status.includes('VALIDE');
 
-    result.className = valid ? 'ok' : 'ko';
-    result.querySelector('.icon').textContent  = valid ? '✅' : '❌';
-    result.querySelector('.title').textContent = valid ? 'Billet valide' : 'Billet refusé';
-    result.querySelector('.msg').textContent   = data.message || (valid ? 'Entrée autorisée' : 'Accès refusé');
-    result.style.display = 'block';
+    const data = await res.json();
 
-  } catch {
-    result.className = 'ko';
-    result.querySelector('.icon').textContent  = '⚠️';
-    result.querySelector('.title').textContent = 'Erreur réseau';
-    result.querySelector('.msg').textContent   = 'Serveur inaccessible';
-    result.style.display = 'block';
+    result.style.display = "block";
+
+    if(data.status && data.status.includes("VALIDE")){
+      result.innerText = "✅ VALIDE";
+    }else{
+      result.innerText = "❌ REFUSÉ";
+    }
+
+  }catch(e){
+    result.style.display = "block";
+    result.innerText = "⚠️ erreur serveur";
   }
 
-  setTimeout(() => {
-    result.style.display = 'none';
-    codeBox.textContent  = '--'; codeBox.classList.remove('active');
-    lastCode = null; verifying = false;
-    btn.disabled = true; btn.textContent = 'VÉRIFIER LE BILLET';
-    statusEl.textContent = '🔍 Prêt pour le prochain billet';
-    statusEl.className   = 'wait';
-  }, 4000);
+  setTimeout(()=>{
+    scanning = true;
+    lastCode = null;
+    codeBox.innerText = "--";
+    btn.disabled = true;
+    btn.innerText = "VÉRIFIER";
+    result.style.display = "none";
+    statusEl.innerText = "🔍 Scan en cours...";
+  },3000);
 });
 
-// Toggle debug
-let debugOn = true;
-document.getElementById('debug-toggle').addEventListener('click', function() {
-  debugOn = !debugOn;
-  document.getElementById('debug').style.display = debugOn ? 'flex' : 'none';
-  this.textContent = debugOn ? 'masquer le debug' : 'afficher le debug';
-});
-
+// START
 startCamera();
+
 </script>
+
 </body>
 </html>
