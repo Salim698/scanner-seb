@@ -3,221 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Officiel SEB-2026</title>
+    <title>DEBUG SCANNER SEB</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #111;
-            color: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        #container {
-            width: 100%;
-            max-width: 420px;
-            background: #1a1a1a;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        h2 { text-align: center; margin-bottom: 20px; color: #4ade80; font-size: 1.2rem; }
-        #video-wrapper {
-            position: relative;
-            width: 100%;
-            border-radius: 10px;
-            overflow: hidden;
-            background: #000;
-            aspect-ratio: 4/3;
-        }
-        #video { width: 100%; height: 100%; object-fit: cover; }
-        #status {
-            margin-top: 15px;
-            text-align: center;
-            font-weight: bold;
-            color: #aaa;
-        }
-        #code-box {
-            margin-top: 15px;
-            background: #222;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            font-family: monospace;
-            font-size: 1.1rem;
-            border: 1px solid #333;
-            color: #4ade80;
-        }
-        #btn {
-            margin-top: 15px;
-            width: 100%;
-            padding: 15px;
-            background: #4ade80;
-            color: #111;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        #btn:disabled { background: #333; color: #666; cursor: not-allowed; }
-        #result {
-            margin-top: 15px;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            display: none;
-            font-weight: bold;
-        }
-        .valide { background: #064e3b; color: #4ade80; border: 1px solid #4ade80; }
-        .refuse { background: #7f1d1d; color: #f87171; border: 1px solid #f87171; }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 10px; }
+        #video { width: 100%; border: 2px solid #333; border-radius: 10px; }
+        #log { background: #111; padding: 10px; height: 100px; overflow-y: scroll; font-size: 12px; margin-top: 10px; border: 1px solid #0f0; }
+        #btn { width: 100%; padding: 20px; background: #0f0; color: #000; font-weight: bold; border: none; margin-top: 10px; display:none; }
+        .status-box { text-align: center; padding: 10px; font-size: 1.2rem; }
     </style>
 </head>
 <body>
 
-<div id="container">
-    <h2>SCANNER SEB-2026</h2>
-    <div id="video-wrapper">
-        <video id="video" autoplay playsinline></video>
-    </div>
+    <div class="status-box" id="status">INITIALISATION...</div>
+    <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none;"></canvas>
+    
+    <div id="log">Logs système :<br></div>
+    
+    <button id="btn">VÉRIFIER LE CODE</button>
 
-    <div id="status">📷 Initialisation caméra...</div>
-    <div id="code-box">-- ATTENTE SCAN --</div>
-    <button id="btn" disabled>VÉRIFIER LE TICKET</button>
-    <div id="result"></div>
-</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const logDiv = document.getElementById('log');
+        const btn = document.getElementById('btn');
+        const statusEl = document.getElementById('status');
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+        let lastCode = null;
 
-<script>
-    // ================= CONFIGURATION =================
-    const WEBHOOK_URL = 'https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify';
-    const TICKET_PREFIX = 'SEB-2026-';
-    // =================================================
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${time}] ${msg}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
 
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const statusEl = document.getElementById('status');
-    const codeBox = document.getElementById('code-box');
-    const btn = document.getElementById('btn');
-    const resultDiv = document.getElementById('result');
-
-    let lastCode = null;
-    let isScanning = true;
-
-    async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: "environment",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                }
-            });
-            video.srcObject = stream;
-            video.onloadedmetadata = () => {
-                video.play();
-                statusEl.innerText = "🔍 Recherche de QR code...";
+        async function start() {
+            addLog("Tentative accès caméra...");
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = stream;
+                addLog("Caméra OK. Lancement du scan...");
+                statusEl.innerText = "🔍 RECHERCHE QR...";
                 requestAnimationFrame(tick);
-            };
-        } catch (e) {
-            statusEl.innerText = "❌ Erreur : Caméra inaccessible";
-            console.error(e);
-        }
-    }
-
-    function tick() {
-        if (!isScanning) {
-            setTimeout(() => requestAnimationFrame(tick), 500);
-            return;
+            } catch (e) {
+                addLog("ERREUR CAMÉRA : " + e.message);
+                statusEl.innerText = "❌ ERREUR CAMÉRA";
+            }
         }
 
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, canvas.width, canvas.height, {
-                inversionAttempts: "attemptBoth",
-            });
-
-            if (code) {
-                const val = code.data.trim().toUpperCase();
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // On vérifie si le code commence par le bon préfixe
-                if (val.startsWith(TICKET_PREFIX)) {
-                    processDetection(val);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, canvas.width, canvas.height, {
+                    inversionAttempts: "attemptBoth",
+                });
+
+                if (code) {
+                    const val = code.data.trim();
+                    addLog("QR TROUVÉ : " + val);
+                    
+                    if (val.startsWith("SEB-2026-")) {
+                        statusEl.innerText = "✅ CODE VALIDE DÉTECTÉ";
+                        lastCode = val;
+                        btn.style.display = "block";
+                        btn.innerText = "VÉRIFIER " + val;
+                    } else {
+                        addLog("Préfixe incorrect : " + val);
+                    }
                 }
             }
+            // On scanne 2 fois par seconde pour ne pas figer le téléphone
+            setTimeout(() => requestAnimationFrame(tick), 500);
         }
-        // On attend 250ms avant le prochain scan pour ne pas saturer le téléphone
-        setTimeout(() => requestAnimationFrame(tick), 250);
-    }
 
-    function processDetection(val) {
-        lastCode = val;
-        codeBox.innerText = val;
-        statusEl.innerText = "✅ Ticket détecté !";
-        btn.disabled = false;
-        
-        // Petit effet visuel sur la box
-        codeBox.style.borderColor = "#4ade80";
-    }
-
-    btn.addEventListener("click", async () => {
-        if (!lastCode) return;
-
-        isScanning = false;
-        btn.disabled = true;
-        btn.innerText = "⏳ Vérification en cours...";
-        resultDiv.style.display = "none";
-
-        try {
-            const response = await fetch(WEBHOOK_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ qr_code: lastCode })
-            });
-
-            const data = await response.json();
-            
-            resultDiv.style.display = "block";
-            // On vérifie la réponse de ton workflow n8n
-            if (data.status && data.status.includes("VALIDE")) {
-                resultDiv.className = "valide";
-                resultDiv.innerText = "✅ TICKET VALIDE - ACCÈS AUTORISÉ";
-            } else {
-                resultDiv.className = "refuse";
-                resultDiv.innerText = "❌ TICKET REFUSÉ OU DÉJÀ UTILISÉ";
+        btn.addEventListener('click', async () => {
+            addLog("Envoi vers n8n...");
+            try {
+                // REMPLACE BIEN L'URL CI-DESSOUS PAR TON NGROK ACTUEL
+                const res = await fetch('https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ qr_code: lastCode })
+                });
+                const data = await res.json();
+                addLog("RÉPONSE N8N : " + JSON.stringify(data));
+                alert("Résultat : " + (data.status || "Inconnu"));
+            } catch (e) {
+                addLog("ERREUR WEBHOOK : " + e.message);
+                alert("Erreur de connexion n8n. Vérifie ngrok !");
             }
-        } catch (e) {
-            resultDiv.style.display = "block";
-            resultDiv.className = "refuse";
-            resultDiv.innerText = "⚠️ Erreur de connexion au serveur";
-        }
+        });
 
-        // Réinitialisation après 4 secondes pour le prochain scan
-        setTimeout(() => {
-            isScanning = true;
-            lastCode = null;
-            btn.innerText = "VÉRIFIER LE TICKET";
-            btn.disabled = true;
-            codeBox.innerText = "-- ATTENTE SCAN --";
-            codeBox.style.borderColor = "#333";
-            resultDiv.style.display = "none";
-            statusEl.innerText = "🔍 Recherche de QR code...";
-        }, 4000);
-    });
-
-    startCamera();
-</script>
-
+        start();
+    </script>
 </body>
 </html>
