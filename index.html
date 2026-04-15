@@ -2,209 +2,148 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SCANNER SEB - ULTRA SENSITIVITY</title>
+    <title>SCANNER SEB - PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
         body {
-            background: #000;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #111;
+            color: white;
             margin: 0;
+        }
+
+        h2 {
+            margin-top: 15px;
+        }
+
+        #reader {
+            width: 100%;
+            max-width: 500px;
+            margin: auto;
+            border: 3px solid #0f0;
+            border-radius: 10px;
             overflow: hidden;
         }
 
-        #video {
-            width: 100vw;
-            height: 60vh;
-            object-fit: cover;
-            border-bottom: 2px solid #0f0;
+        #result {
+            margin: 20px;
+            padding: 15px;
+            background: #222;
+            border-radius: 10px;
         }
 
-        #log-container {
-            height: 40vh;
-            padding: 10px;
-            font-size: 11px;
-            overflow-y: auto;
-            background: #050505;
+        #status {
+            font-size: 16px;
+            margin-bottom: 10px;
         }
 
-        .success-btn {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            padding: 25px;
+        button {
+            padding: 15px;
             background: #0f0;
-            color: #000;
-            font-weight: bold;
             border: none;
-            border-radius: 10px;
-            display: none;
-            z-index: 100;
-            box-shadow: 0 0 20px #0f0;
-            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            width: 100%;
         }
 
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 60vh;
-            border: 2px solid rgba(0,255,0,0.3);
-            box-sizing: border-box;
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #overlay::after {
-            content: "";
-            width: 70%;
-            height: 70%;
-            border: 2px solid #0f0;
-            border-radius: 10px;
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
         }
     </style>
 </head>
 
 <body>
 
-    <div id="overlay"></div>
+    <h2>🎫 SCANNER DE BILLETS SEB</h2>
 
-    <video id="video" autoplay playsinline></video>
+    <div id="reader"></div>
 
-    <canvas id="canvas" style="display:none;"></canvas>
-
-    <button id="btn" class="success-btn">
-        VÉRIFIER CE TICKET
-    </button>
-
-    <div id="log-container">
-        <div style="color: #fff; font-weight: bold; border-bottom: 1px solid #333; margin-bottom: 5px;">
-            SYSTEM LOGS (v3.0)
-        </div>
-        <div id="logs"></div>
+    <div id="result">
+        <p id="status">📷 En attente de scan...</p>
+        <button id="send-btn" style="display:none;">VALIDER LE TICKET</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const logs = document.getElementById('logs');
-        const btn = document.getElementById('btn');
+        let scannedCode = null;
+        let scannerRunning = true;
 
-        let lastCode = null;
-        let scanCount = 0;
-
-        function addLog(msg, color = "#0f0") {
-            const div = document.createElement('div');
-            div.style.color = color;
-            div.innerHTML = `> ${msg}`;
-            logs.insertBefore(div, logs.firstChild);
+        function beep() {
+            const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+            audio.play();
         }
 
-        async function init() {
-            addLog("Demande d'accès caméra (Standard)...", "#aaa");
+        function vibrate() {
+            if (navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            if (!scannerRunning) return;
+
+            if (decodedText.includes("SEB-2026-")) {
+
+                scannedCode = decodedText;
+                scannerRunning = false;
+
+                document.getElementById('status').innerHTML =
+                    "✅ TICKET VALIDE : " + decodedText;
+
+                document.getElementById('send-btn').style.display = "block";
+
+                beep();
+                vibrate();
+
+                html5QrcodeScanner.clear();
+
+            } else {
+                document.getElementById('status').innerHTML =
+                    "⚠️ QR NON VALIDE";
+            }
+        }
+
+        function onScanFailure(error) {
+            // silencieux pour performance
+        }
+
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                rememberLastUsedCamera: true,
+                videoConstraints: {
+                    facingMode: "environment"
+                }
+            }
+        );
+
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+
+        document.getElementById('send-btn').addEventListener('click', async () => {
+
+            const btn = document.getElementById('send-btn');
+
+            btn.disabled = true;
+            btn.innerText = "⏳ Vérification...";
+
+            document.getElementById('status').innerHTML =
+                "📡 Envoi vers le serveur...";
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: "environment"
-                    }
+                const res = await fetch('https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ qr_code: scannedCode })
                 });
 
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true);
-
-                video.onloadedmetadata = () => {
-                    video.play();
-                    addLog("Caméra activée ! Début du scan...", "#4ade80");
-                    requestAnimationFrame(tick);
-                };
-
-            } catch (e) {
-                addLog("ERREUR CRITIQUE : " + e.name, "red");
-                alert("La caméra est bloquée. Erreur : " + e.message);
-            }
-        }
-
-        function tick() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-                const code = jsQR(
-                    imageData.data,
-                    canvas.width,
-                    canvas.height,
-                    {
-                        inversionAttempts: "attemptBoth"
-                    }
-                );
-
-                scanCount++;
-
-                if (scanCount % 10 === 0) {
-                    addLog("Analyse en cours...");
-                }
-
-                if (code) {
-                    const val = code.data.trim().toUpperCase();
-
-                    addLog("QR IDENTIFIÉ : " + val, "#4ade80");
-
-                    if (val.startsWith("SEB-2026-")) {
-                        lastCode = val;
-
-                        btn.style.display = "block";
-                        btn.innerText = "VALIDER : " + val;
-
-                        if (navigator.vibrate) {
-                            navigator.vibrate(200);
-                        }
-                    }
-                }
-            }
-
-            setTimeout(() => {
-                requestAnimationFrame(tick);
-            }, 150);
-        }
-
-        btn.addEventListener('click', async () => {
-            btn.disabled = true;
-            btn.innerText = "CONNEXION N8N...";
-
-            addLog("Envoi vers le serveur...");
-
-            try {
-                const res = await fetch(
-                    'https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            qr_code: lastCode
-                        })
-                    }
-                );
-
                 const data = await res.json();
-
-                addLog("RÉPONSE : " + JSON.stringify(data));
 
                 if (data.status && data.status.includes("VALIDE")) {
                     alert("✅ ACCÈS AUTORISÉ");
@@ -212,16 +151,13 @@
                     alert("❌ ACCÈS REFUSÉ");
                 }
 
+                location.reload();
+
             } catch (e) {
-                addLog("ERREUR RÉSEAU : " + e.message, "red");
-                alert("Erreur serveur. Vérifie ton ngrok !");
+                alert("❌ Erreur serveur (ngrok ou n8n)");
+                location.reload();
             }
-
-            btn.style.display = "none";
-            btn.disabled = false;
         });
-
-        init();
     </script>
 
 </body>
