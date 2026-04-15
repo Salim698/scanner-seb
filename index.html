@@ -2,56 +2,77 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DEBUG SCANNER SEB</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SCANNER SEB - ULTRA SENSITIVITY</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 10px; }
-        #video { width: 100%; border: 2px solid #333; border-radius: 10px; }
-        #log { background: #111; padding: 10px; height: 100px; overflow-y: scroll; font-size: 12px; margin-top: 10px; border: 1px solid #0f0; }
-        #btn { width: 100%; padding: 20px; background: #0f0; color: #000; font-weight: bold; border: none; margin-top: 10px; display:none; }
-        .status-box { text-align: center; padding: 10px; font-size: 1.2rem; }
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
+        #video { width: 100vw; height: 60vh; object-fit: cover; border-bottom: 2px solid #0f0; }
+        #log-container { height: 40vh; padding: 10px; font-size: 11px; overflow-y: auto; background: #050505; }
+        .success-btn { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 80%; padding: 25px; background: #0f0; color: #000; 
+            font-weight: bold; border: none; border-radius: 10px; display: none; z-index: 100;
+            box-shadow: 0 0 20px #0f0; font-size: 1.2rem;
+        }
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 60vh;
+            border: 2px solid rgba(0,255,0,0.3); box-sizing: border-box;
+            pointer-events: none; display: flex; align-items: center; justify-content: center;
+        }
+        #overlay::after {
+            content: ""; width: 70%; height: 70%; border: 2px solid #0f0; border-radius: 10px;
+        }
     </style>
 </head>
 <body>
 
-    <div class="status-box" id="status">INITIALISATION...</div>
+    <div id="overlay"></div>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none;"></canvas>
     
-    <div id="log">Logs système :<br></div>
-    
-    <button id="btn">VÉRIFIER LE CODE</button>
+    <button id="btn" class="success-btn">VÉRIFIER CE TICKET</button>
+
+    <div id="log-container">
+        <div style="color: #fff; font-weight: bold; border-bottom: 1px solid #333; margin-bottom: 5px;">SYSTEM LOGS (v3.0)</div>
+        <div id="logs"></div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const logDiv = document.getElementById('log');
+        const logs = document.getElementById('logs');
         const btn = document.getElementById('btn');
-        const statusEl = document.getElementById('status');
 
         let lastCode = null;
+        let scanCount = 0;
 
-        function addLog(msg) {
-            const time = new Date().toLocaleTimeString();
-            logDiv.innerHTML += `[${time}] ${msg}<br>`;
-            logDiv.scrollTop = logDiv.scrollHeight;
+        function addLog(msg, color = "#0f0") {
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.innerHTML = `> ${msg}`;
+            logs.insertBefore(div, logs.firstChild);
         }
 
-        async function start() {
-            addLog("Tentative accès caméra...");
+        async function init() {
+            addLog("Initialisation matérielle...");
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" } 
+                    video: { 
+                        facingMode: "environment",
+                        focusMode: "continuous",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
                 });
                 video.srcObject = stream;
-                addLog("Caméra OK. Lancement du scan...");
-                statusEl.innerText = "🔍 RECHERCHE QR...";
+                video.setAttribute("playsinline", true);
+                await video.play();
+                addLog("Caméra active (HD). Lancement du moteur...");
                 requestAnimationFrame(tick);
             } catch (e) {
-                addLog("ERREUR CAMÉRA : " + e.message);
-                statusEl.innerText = "❌ ERREUR CAMÉRA";
+                addLog("ERREUR : " + e.message, "red");
             }
         }
 
@@ -66,43 +87,55 @@
                     inversionAttempts: "attemptBoth",
                 });
 
+                scanCount++;
+                if (scanCount % 10 === 0) addLog("Analyse en cours...");
+
                 if (code) {
-                    const val = code.data.trim();
-                    addLog("QR TROUVÉ : " + val);
+                    const val = code.data.trim().toUpperCase();
+                    addLog("QR IDENTIFIÉ : " + val, "#4ade80");
                     
                     if (val.startsWith("SEB-2026-")) {
-                        statusEl.innerText = "✅ CODE VALIDE DÉTECTÉ";
                         lastCode = val;
                         btn.style.display = "block";
-                        btn.innerText = "VÉRIFIER " + val;
-                    } else {
-                        addLog("Préfixe incorrect : " + val);
+                        btn.innerText = "VALIDER : " + val;
+                        // On vibre si le téléphone le permet
+                        if (navigator.vibrate) navigator.vibrate(200);
                     }
                 }
             }
-            // On scanne 2 fois par seconde pour ne pas figer le téléphone
-            setTimeout(() => requestAnimationFrame(tick), 500);
+            // On laisse un petit délai pour ne pas freezer le navigateur
+            setTimeout(() => requestAnimationFrame(tick), 150);
         }
 
         btn.addEventListener('click', async () => {
-            addLog("Envoi vers n8n...");
+            btn.disabled = true;
+            btn.innerText = "CONNEXION N8N...";
+            addLog("Envoi vers le serveur...");
+            
             try {
-                // REMPLACE BIEN L'URL CI-DESSOUS PAR TON NGROK ACTUEL
                 const res = await fetch('https://cristi-honourless-nonmathematically.ngrok-free.dev/webhook/ticket-verify', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ qr_code: lastCode })
                 });
                 const data = await res.json();
-                addLog("RÉPONSE N8N : " + JSON.stringify(data));
-                alert("Résultat : " + (data.status || "Inconnu"));
+                addLog("RÉPONSE : " + JSON.stringify(data));
+                
+                if(data.status && data.status.includes("VALIDE")) {
+                    alert("✅ ACCÈS AUTORISÉ");
+                } else {
+                    alert("❌ ACCÈS REFUSÉ");
+                }
             } catch (e) {
-                addLog("ERREUR WEBHOOK : " + e.message);
-                alert("Erreur de connexion n8n. Vérifie ngrok !");
+                addLog("ERREUR RÉSEAU : " + e.message, "red");
+                alert("Erreur serveur. Vérifie ton ngrok !");
             }
+            
+            btn.style.display = "none";
+            btn.disabled = false;
         });
 
-        start();
+        init();
     </script>
 </body>
 </html>
